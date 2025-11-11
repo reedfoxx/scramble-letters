@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Склади слово — Мовознайко</title>
+<style>
+  :root {
+    font-family: "Comic Sans MS", "Segoe UI", system-ui, sans-serif;
+    --accent: #ff7b00;
+    --bg: #fffaf3;
+  }
+  body {
+    margin: 0;
+    padding: 24px;
+    background: var(--bg);
+    color: #222;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; }
+  header { text-align: center; margin-bottom: 20px; }
+  h1 { font-size: 26px; color: #ff7b00; margin-bottom: 8px; }
+  p.lead { font-size: 16px; color: #555; margin-top: 0; }
+  .card {
+    background: white;
+    border-radius: 16px;
+    padding: 20px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    margin-bottom: 16px;
+  }
+  #target {
+    min-height: 70px;
+    border: 3px dashed #ffd29b;
+    border-radius: 12px;
+    padding: 10px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    background: #fff7ed;
+  }
+  .letter {
+    user-select: none;
+    padding: 14px 18px;
+    border-radius: 10px;
+    background: #fff2d9;
+    border: 2px solid #ffb23c;
+    cursor: grab;
+    font-size: 26px;
+    font-weight: bold;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    color: #333;
+  }
+  .controls {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+    justify-content: center;
+  }
+  button {
+    background: var(--accent);
+    color: white;
+    border: none;
+    padding: 12px 16px;
+    border-radius: 10px;
+    font-weight: bold;
+    font-size: 16px;
+    cursor: pointer;
+    transition: 0.2s;
+  }
+  button:hover { background: #ff9c3d; }
+  button.ghost {
+    background: transparent;
+    color: var(--accent);
+    border: 2px solid #ffb868;
+  }
+  .status {
+    margin-top: 16px;
+    font-weight: bold;
+    text-align: center;
+    font-size: 18px;
+  }
+  .success { color: #2b9d36; }
+  .fail { color: #e03c28; }
+  .hint { color: #0066cc; }
+  .letters-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-top: 14px;
+  }
+  .setup { text-align: center; margin-bottom: 20px; }
+  input[type=number] {
+    width: 80px;
+    padding: 8px;
+    border-radius: 8px;
+    border: 2px solid #ffd29b;
+    text-align: center;
+    font-size: 16px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Склади слово</h1>
+    <p class="lead">Перетягни або натисни літери, щоб скласти слово. 🎯</p>
+  </header>
+
+  <div class="setup">
+    <label for="wordCount">Кількість слів (1–7): </label>
+    <input type="number" id="wordCount" min="1" max="7" value="3">
+    <button id="startBtn">▶️ Почати гру</button>
+  </div>
+
+  <section id="game" class="card" style="display:none;">
+    <div id="target"></div>
+
+    <div class="controls">
+      <button id="shuffleBtn">🔀 Перемішати</button>
+      <button id="hintBtn" class="ghost">💡 Підказка</button>
+      <button id="checkBtn">✅ Перевірити</button>
+      <button id="resetBtn" class="ghost">🔁 Нове слово</button>
+    </div>
+
+    <div id="letters" class="letters-row"></div>
+    <div id="status" class="status"></div>
+  </section>
+</div>
+
+<script>
+// ======= СЛОВА =======
+const WORDS = [
+"лисичка","осінь","мова","друг","книга","дерево","усмішка","школа","сонце","мама","тато","місто","річка","хмара","дім","яблуко","сад","дитина","рука","око",
+"вікно","ліс","гора","пташка","кот","собака","радість","гра","лист","квітка","місяць","весна","літо","зима","осінь","вітер","трава","метелик","молоко","вода",
+"хліб","мішок","цукор","чай","олівець","ручка","зошит","портфель","дзвінок","урок","дощ","веселка","зоря","ніч","день","ранок","вечір","світло","дорога",
+"камінь","пісок","риба","море","корабель","зірка","яблуня","вишня","груша","будинок","вовк","ведмідь","тигр","слон","жираф","їжачок","білка",
+"пеньок","трактор","машина","літак","човен","паровоз","замок","ключ","дзеркало","свято","подарунок","чашка","тарілка","ложка","стілець","стіл","кімната","подушка","ковдра","іграшка","лялька"
+];
+
+// =====================
+let wordsQueue = [];
+let currentWord = "";
+let totalWords = 0;
+let guessedCount = 0;
+
+const target = document.getElementById("target");
+const lettersContainer = document.getElementById("letters");
+const status = document.getElementById("status");
+const gameSection = document.getElementById("game");
+
+function shuffle(arr){ return arr.sort(()=>Math.random()-0.5); }
+
+function startGame(){
+  totalWords = parseInt(document.getElementById("wordCount").value);
+  if(isNaN(totalWords) || totalWords < 1) totalWords = 1;
+  if(totalWords > WORDS.length) totalWords = WORDS.length;
+  wordsQueue = shuffle([...WORDS]).slice(0, totalWords);
+  guessedCount = 0;
+  document.querySelector(".setup").style.display="none";
+  gameSection.style.display="block";
+  nextWord();
+}
+
+function nextWord(){
+  if(wordsQueue.length === 0){
+    status.textContent = "🎉 Гру завершено! Усі слова відгадані!";
+    status.className = "status success";
+    target.innerHTML="";
+    lettersContainer.innerHTML="";
+    document.getElementById("resetBtn").style.display="none";
+    document.getElementById("shuffleBtn").style.display="none";
+    document.getElementById("hintBtn").style.display="none";
+    document.getElementById("checkBtn").textContent="🔁 Почати знову";
+    document.getElementById("checkBtn").onclick = ()=>location.reload();
+    return;
+  }
+  currentWord = wordsQueue.pop();
+  renderLetters(currentWord);
+}
+
+function renderLetters(word){
+  target.innerHTML="";
+  lettersContainer.innerHTML="";
+  status.textContent = `Слово ${guessedCount+1} із ${totalWords}`;
+  const letters = shuffle([...word]);
+  for(const ch of letters){
+    const btn = document.createElement("button");
+    btn.className="letter";
+    btn.textContent = ch;
+    btn.addEventListener("click", ()=>addLetter(ch, btn));
+    btn.draggable = true;
+    btn.addEventListener("dragstart", e=>{
+      e.dataTransfer.setData("text/plain", ch);
+    });
+    lettersContainer.appendChild(btn);
+  }
+}
+
+function addLetter(ch, btn){
+  const div = document.createElement("div");
+  div.className="letter";
+  div.textContent = ch;
+  div.addEventListener("click", ()=>div.remove());
+  target.appendChild(div);
+  btn.disabled = true;
+  btn.style.opacity="0.5";
+}
+
+target.addEventListener("dragover", e=>e.preventDefault());
+target.addEventListener("drop", e=>{
+  e.preventDefault();
+  const ch = e.dataTransfer.getData("text/plain");
+  const btn = [...lettersContainer.children].find(b=>b.textContent===ch && !b.disabled);
+  if(btn) addLetter(ch, btn);
+});
+
+function getAnswer(){
+  return [...target.children].map(x=>x.textContent).join("");
+}
+
+function checkAnswer(){
+  const ans = getAnswer();
+  if(ans === currentWord){
+    status.textContent = `✅ Молодець! Це правильне слово "${currentWord}"`;
+    status.className = "status success";
+    guessedCount++;
+    setTimeout(nextWord, 1200);
+  } else {
+    status.textContent = "❌ Ні, спробуй ще!";
+    status.className = "status fail";
+  }
+}
+
+function resetWord(){
+  renderLetters(currentWord);
+}
+
+function showHint(){
+  status.textContent = `💡 Підказка: перша літера — "${currentWord[0].toUpperCase()}"`;
+  status.className = "status hint";
+}
+
+document.getElementById("startBtn").addEventListener("click", startGame);
+document.getElementById("shuffleBtn").addEventListener("click", resetWord);
+document.getElementById("hintBtn").addEventListener("click", showHint);
+document.getElementById("checkBtn").addEventListener("click", checkAnswer);
+document.getElementById("resetBtn").addEventListener("click", nextWord);
+</script>
+</body>
+</html>
